@@ -1,154 +1,97 @@
 from __future__ import print_function
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from sklearn.metrics import roc_auc_score, precision_score, recall_score, accuracy_score
-from torch.autograd import Variable
+from torch import *
 
+from Lab2.data.dataloader import read_bci_data
+
+
+def show_data(data):
+    if len(data.shape) == 3:
+        data = data[0]
+
+    if len(data.shape) != 2:
+        raise AttributeError("shape no ok")
+        return
+
+    plt.figure(figsize=(10, 4))
+    for i in range(data.shape[0]):
+        plt.subplot(2, 1, i + 1)
+        plt.ylabel("Channel " + str(i + 1), fontsize=15)
+        plt.plot(np.array(data[i, :]))
+        plt.show()
 
 def main():
-    net = EEGNet().cuda(0)
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(net.parameters())
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    x_train, y_train, x_test, y_test = read_bci_data()
+    x_train = torch.Tensor(x_train)
+    y_train = torch.Tensor(y_train)
+    x_test = torch.Tensor(x_test)
+    y_test = torch.Tensor(y_test)
+    # show_data(x_train[0][0])
 
-    X_train = np.random.rand(100, 1, 120, 64).astype('float32')  # np.random.rand generates between [0, 1)
-    y_train = np.round(np.random.rand(100).astype('float32'))  # binary data, so we round it to 0 or 1.
+    # NN
+    net = EGGNet(nn.ELU).to(device)
 
-    X_val = np.random.rand(100, 1, 120, 64).astype('float32')
-    y_val = np.round(np.random.rand(100).astype('float32'))
+    # Training setting
+    loss_fn = nn.CrossEntropyLoss()
+    learning_rate = 1e-4
+    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
 
-    X_test = np.random.rand(100, 1, 120, 64).astype('float32')
-    y_test = np.round(np.random.rand(100).astype('float32'))
-
-    batch_size = 32
-
-    for epoch in range(10):  # loop over the dataset multiple times
-        print("\nEpoch ", epoch)
-
-        running_loss = 0.0
-        number = int(len(X_train) / batch_size - 1)
-        for i in range(number):
-            s = i * batch_size
-            e = i * batch_size + batch_size
-
-            inputs = torch.from_numpy(X_train[s:e])
-            labels = torch.FloatTensor(np.array([y_train[s:e]]).T * 1.0)
-
-            # wrap them in Variable
-            inputs, labels = Variable(inputs.cuda(0)), Variable(labels.cuda(0))
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-
-            optimizer.step()
-
-            running_loss += loss.data
-
-        # Validation accuracy
-        params = ["acc", "auc", "fmeasure"]
-        print(params)
-        print("Training Loss ", running_loss)
-        print("Train - ", evaluate(net, X_train, y_train, params))
-        print("Validation - ", evaluate(net, X_val, y_val, params))
-        print("Test - ", evaluate(net, X_test, y_test, params))
+    # Training
+    for i in range(1000):
+        y_hat = net(x_train.to(device))
+        loss = loss_fn(y_hat, y_train.to(device).long())
+        print(loss)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
 
-def evaluate(model, X, Y, params=None):
-    if params is None:
-        params = ["acc"]
-    results = []
-    batch_size = 100
+class EGGNet(nn.Module):
+    def __init__(self, activation=None):
+        if not activation:
+            activation = nn.ELU
 
-    predicted = []
+        super(EGGNet, self).__init__()
+        # firstconv
+        self.firstConv = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=(1, 51), stride=(1, 1), padding=(0, 25), bias=False),
+            nn.BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
 
-    for i in range(int(len(X) / batch_size)):
-        s = i * batch_size
-        e = i * batch_size + batch_size
+        # depthwiseConv
+        self.depthwiseConv = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=(2, 1), stride=(1, 1), groups=16, bias=False),
+            nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.AvgPool2d(kernel_size=(1, 4), stride=(1, 4), padding=0),
+            nn.Dropout(p=0.25)
+        )
 
-        inputs = Variable(torch.from_numpy(X[s:e]).cuda(0))
-        pred = model(inputs)
+        # separableConv
+        self.separableConv = nn.Sequential(
+            nn.Conv2d(32, 32, kernel_size=(1, 15), stride=(1, 1), padding=(0, 7), bias=False),
+            nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.AvgPool2d(kernel_size=(1, 8), stride=(1, 8), padding=0),
+            nn.Dropout(p=0.25)
+        )
 
-        predicted.append(pred.data.cpu().numpy())
-
-    inputs = Variable(torch.from_numpy(X).cuda(0))
-    predicted = model(inputs)
-
-    predicted = predicted.data.cpu().numpy()
-
-    for param in params:
-        if param == 'acc':
-            results.append(accuracy_score(Y, np.round(predicted)))
-        if param == "auc":
-            results.append(roc_auc_score(Y, predicted))
-        if param == "recall":
-            results.append(recall_score(Y, np.round(predicted)))
-        if param == "precision":
-            results.append(precision_score(Y, np.round(predicted)))
-        if param == "fmeasure":
-            precision = precision_score(Y, np.round(predicted))
-            recall = recall_score(Y, np.round(predicted))
-            results.append(2 * precision * recall / (precision + recall))
-    return results
-
-
-class EEGNet(nn.Module):
-    def __init__(self):
-        super(EEGNet, self).__init__()
-        self.T = 120
-
-        # Layer 1
-        self.conv1 = nn.Conv2d(1, 16, (1, 64), padding=0)
-        self.batchnorm1 = nn.BatchNorm2d(16, False)
-
-        # Layer 2
-        self.padding1 = nn.ZeroPad2d((16, 17, 0, 1))
-        self.conv2 = nn.Conv2d(1, 4, (2, 32))
-        self.batchnorm2 = nn.BatchNorm2d(4, False)
-        self.pooling2 = nn.MaxPool2d(2, 4)
-
-        # Layer 3
-        self.padding2 = nn.ZeroPad2d((2, 1, 4, 3))
-        self.conv3 = nn.Conv2d(4, 4, (8, 4))
-        self.batchnorm3 = nn.BatchNorm2d(4, False)
-        self.pooling3 = nn.MaxPool2d((2, 4))
-
-        # FC Layer
-        # NOTE: This dimension will depend on the number of timestamps per sample in your data.
-        # I have 120 timepoints.
-        self.fc1 = nn.Linear(4 * 2 * 7, 1)
+        # classify
+        self.classify = nn.Sequential(
+            nn.Linear(in_features=736, out_features=2, bias=True)
+        )
 
     def forward(self, x):
-        # Layer 1
-        x = F.elu(self.conv1(x))
-        x = self.batchnorm1(x)
-        x = F.dropout(x, 0.25)
-        x = x.permute(0, 3, 1, 2)
-
-        # Layer 2
-        x = self.padding1(x)
-        x = F.elu(self.conv2(x))
-        x = self.batchnorm2(x)
-        x = F.dropout(x, 0.25)
-        x = self.pooling2(x)
-
-        # Layer 3
-        x = self.padding2(x)
-        x = F.elu(self.conv3(x))
-        x = self.batchnorm3(x)
-        x = F.dropout(x, 0.25)
-        x = self.pooling3(x)
-
-        # FC Layer
-        x = x.view(-1, 4 * 2 * 7)
-        x = torch.sigmoid(self.fc1(x))
+        x = self.firstConv(x)
+        x = self.depthwiseConv(x)
+        x = self.separableConv(x)
+        x = x.view(-1, self.classify[0].in_features)
+        x = self.classify(x)
         return x
 
 
