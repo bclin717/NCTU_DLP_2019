@@ -1,7 +1,8 @@
 from __future__ import print_function
 
+from functools import reduce
+
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim
@@ -9,22 +10,6 @@ from torch.cuda import device
 from torch.utils.data import DataLoader
 
 from Lab2.data.dataloader import read_bci_data
-
-
-def showData(data):
-    if len(data.shape) == 3:
-        data = data[0]
-
-    if len(data.shape) != 2:
-        raise AttributeError("shape no ok")
-        return
-
-    plt.figure(figsize=(10, 4))
-    for i in range(data.shape[0]):
-        plt.subplot(2, 1, i + 1)
-        plt.ylabel("Channel " + str(i + 1), fontsize=15)
-        plt.plot(np.array(data[i, :]))
-        plt.show()
 
 
 def showResult(title='', **kwargs):
@@ -49,14 +34,19 @@ def showResult(title='', **kwargs):
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     nets = {
-        "elu": EEGNet().to(device),
-        "relu": EEGNet(nn.ReLU).to(device),
-        "leaky_relu": EEGNet(nn.LeakyReLU).to(device)
+        "EEG_elu": EEGNet().to(device),
+        "EEG_relu": EEGNet(nn.ReLU).to(device),
+        "EEG_leaky_relu": EEGNet(nn.LeakyReLU).to(device),
+        "DCN_elu": DeepConvNet().to(device),
+        "DCN_relu": DeepConvNet(nn.ReLU).to(device),
+        "DCN_leaky_relu": DeepConvNet(nn.LeakyReLU).to(device)
     }
 
     # Training setting
     loss_fn = nn.CrossEntropyLoss()
-    learning_rates = {0.022, 0.0025, 0.0025}
+    learning_rates = {0.02, 0.0018, 0.0018, 0.0002, 0.0002, 0.0002}
+    # learning_rates = {0.0002, 0.0002, 0.0002}
+
     optimizer = torch.optim.Adam
     optimizers = {
         key: optimizer(value.parameters(), lr=learning_rate)
@@ -65,9 +55,8 @@ def main():
     }
 
     epoch_size = 300
-    batch_size = 100
+    batch_size = 64
     train(nets, epoch_size, batch_size, loss_fn, optimizers)
-
 
 def train(nets, epoch_size, batch_size, loss_fn, optimizers):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -130,12 +119,11 @@ def train(nets, epoch_size, batch_size, loss_fn, optimizers):
         torch.cuda.empty_cache()
     showResult(title='EEGNet'.format(epoch + 1), **accuracy)
 
-
 class EEGNet(nn.Module):
     def __init__(self, activation=None):
         if not activation:
             activation = nn.ELU
-            activation.alpha = 1.0
+            activation.alpha = 0.2
         super(EEGNet, self).__init__()
         # firstconv
         self.firstConv = nn.Sequential(
@@ -146,16 +134,16 @@ class EEGNet(nn.Module):
         # depthwiseConv
         self.depthwiseConv = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=(2, 1), stride=(1, 1), groups=16, bias=False),
-            nn.BatchNorm2d(32, eps=1e-05, momentum=0.4, affine=True, track_running_stats=True),
+            nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             activation(),
             nn.AvgPool2d(kernel_size=(1, 4), stride=(1, 4), padding=0),
-            nn.Dropout(p=0.5)
+            nn.Dropout(p=0.6)
         )
 
         # separableConv
         self.separableConv = nn.Sequential(
             nn.Conv2d(32, 32, kernel_size=(1, 15), stride=(1, 1), padding=(0, 7), bias=False),
-            nn.BatchNorm2d(32, eps=1e-05, momentum=0.3, affine=True, track_running_stats=True),
+            nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             activation(),
             nn.AvgPool2d(kernel_size=(1, 8), stride=(1, 8), padding=0),
             nn.Dropout(p=0.6)
@@ -170,6 +158,62 @@ class EEGNet(nn.Module):
         x = self.firstConv(x)
         x = self.depthwiseConv(x)
         x = self.separableConv(x)
+        x = x.view(-1, self.classify[0].in_features)
+        x = self.classify(x)
+        return x
+
+
+class DeepConvNet(nn.Module):
+    def __init__(self, activation=None):
+        if not activation:
+            activation = nn.ELU
+            activation.alpha = 1.0
+        super(DeepConvNet, self).__init__()
+
+        self.conv0 = nn.Sequential(
+            nn.Conv2d(1, 25, kernel_size=(1, 5), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.Conv2d(25, 25, kernel_size=(2, 1), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.BatchNorm2d(25, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.MaxPool2d(kernel_size=(1, 2)),
+            nn.Dropout(p=0.5)
+        )
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(25, 50, kernel_size=(1, 5), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.BatchNorm2d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.MaxPool2d(kernel_size=(1, 2)),
+            nn.Dropout(p=0.5)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(50, 100, kernel_size=(1, 5), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.BatchNorm2d(100, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.MaxPool2d(kernel_size=(1, 2)),
+            nn.Dropout(p=0.5)
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(100, 200, kernel_size=(1, 5), stride=(1, 1), padding=(0, 0), bias=True),
+            nn.BatchNorm2d(200, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            activation(),
+            nn.MaxPool2d(kernel_size=(1, 2)),
+            nn.Dropout(p=0.5)
+        )
+
+        flatten_size = 200 * reduce(lambda x, _: round((x - 4) / 2), [1, 1, 1, 1], 750)
+        self.classify = nn.Sequential(
+            nn.Linear(flatten_size, 2, bias=True),
+            nn.Softmax(dim=0)
+        )
+
+    def forward(self, x):
+        x = self.conv0(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
         x = x.view(-1, self.classify[0].in_features)
         x = self.classify(x)
         return x
