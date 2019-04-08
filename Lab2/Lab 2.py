@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.optim
 from torch.cuda import device
 from torch.utils.data import DataLoader
+
 from Lab2.data.dataloader import read_bci_data
 
 
@@ -27,18 +28,18 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     nets = {
-        # "EEG_elu": EEGNet().to(device),
-        # "EEG_relu": EEGNet(nn.ReLU).to(device),
-        # "EEG_leaky_relu": EEGNet(nn.LeakyReLU).to(device)
-        "DCN_elu": DeepConvNet().to(device),
-        "DCN_relu": DeepConvNet(nn.ReLU).to(device),
-        "DCN_leaky_relu": DeepConvNet(nn.LeakyReLU).to(device)
+        "EEG_elu": EEGNet().to(device),
+        "EEG_relu": EEGNet(nn.ReLU).to(device),
+        "EEG_leaky_relu": EEGNet(nn.LeakyReLU).to(device)
+        # "DCN_elu": DeepConvNet().to(device),
+        # "DCN_relu": DeepConvNet(nn.ReLU).to(device),
+        # "DCN_leaky_relu": DeepConvNet(nn.LeakyReLU).to(device)
     }
 
     # Training setting
     loss_fn = nn.CrossEntropyLoss()
-    # learning_rates = {0.025, 0.002, 0.0018}
-    learning_rates = {0.0002, 0.0002, 0.0002}
+    learning_rates = {0.025, 0.002, 0.0018}
+    # learning_rates = {0.0002, 0.0002, 0.0002}
 
     optimizer = torch.optim.Adam
     optimizers = {
@@ -64,8 +65,9 @@ def train(nets, epoch_size, batch_size, loss_fn, optimizers):
     trainDataset = torch.utils.data.TensorDataset(x_train, y_train)
     testDataset = torch.utils.data.TensorDataset(x_test, y_test)
 
-    trainLoader = torch.utils.data.DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True)
-    testLoader = torch.utils.data.DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True)
+    trainLoader = torch.utils.data.DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True,
+                                              pin_memory=True)
+    testLoader = torch.utils.data.DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True)
 
     accuracy = {
         **{key + "_train": [] for key in nets},
