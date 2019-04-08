@@ -1,21 +1,23 @@
 import numpy as np
 import pandas as pd
+import torchvision.transforms as transform
+from PIL import Image
 from torch.utils import data
 
 
 def getData(mode):
     if mode == 'train':
-        img = pd.read_csv('train_img.csv')
-        label = pd.read_csv('train_label.csv')
+        img = pd.read_csv('./data/train_img.csv')
+        label = pd.read_csv('./data/train_label.csv')
         return np.squeeze(img.values), np.squeeze(label.values)
     else:
-        img = pd.read_csv('test_img.csv')
-        label = pd.read_csv('test_label.csv')
+        img = pd.read_csv('./data/test_img.csv')
+        label = pd.read_csv('./data/test_label.csv')
         return np.squeeze(img.values), np.squeeze(label.values)
 
 
 class RetinopathyLoader(data.Dataset):
-    def __init__(self, root, mode):
+    def __init__(self, root, mode, transform=transform):
         """
         Args:
             root (string): Root path of the dataset.
@@ -27,6 +29,7 @@ class RetinopathyLoader(data.Dataset):
         self.root = root
         self.img_name, self.label = getData(mode)
         self.mode = mode
+        self.transform = transform
         print("> Found %d images..." % (len(self.img_name)))
 
     def __len__(self):
@@ -54,4 +57,11 @@ class RetinopathyLoader(data.Dataset):
             step4. Return processed image and label
         """
 
+        path = self.root + self.img_name[index] + '.jpeg'
+        img = Image.open(path)
+        img = img.convert('RGB')
+        if self.transform is not None:
+            img = self.transform(img)
+
+        label = self.label[index]
         return img, label
