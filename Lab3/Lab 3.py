@@ -23,34 +23,34 @@ transformTesting = transforms.Compose([
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
+batch_size = 4
+epoch_size = 10
+
+trainDataset = RetinopathyLoader(
+    dataPath,
+    'train',
+    transformTraining
+)
+
+testDataset = RetinopathyLoader(
+    dataPath,
+    'test',
+    transformTesting
+)
+
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
+
 
 def main():
     torch.backends.cudnn.enabled = True
-    # Datasets
-    trainDataset = RetinopathyLoader(
-        dataPath,
-        'train',
-        transformTraining
-    )
-
-    testDataset = RetinopathyLoader(
-        dataPath,
-        'test',
-        transformTesting
-    )
-
-    batch_size = 4
-    epoch_size = 10
-
-    trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
-    testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
 
     # Models
     nets = {
         "rs18": torchvision.models.resnet18(pretrained=False).to(device),
-        # "rs18_pretrain": torchvision.models.resnet18(pretrained=True).to(device)
-        # "rs50" : torchvision.models.resnet50(pretrained=False).to(device),
-        # "rs50_pretrain" : torchvision.models.resnet50(pretrained=True).to(device)
+        "rs18_pretrain": torchvision.models.resnet18(pretrained=True).to(device),
+        "rs50": torchvision.models.resnet50(pretrained=False).to(device),
+        "rs50_pretrain": torchvision.models.resnet50(pretrained=True).to(device)
     }
 
     # Optimizers
@@ -69,11 +69,14 @@ def main():
         **{key + "_test": [] for key in nets}
     }
 
-    train("rs18", nets["rs18"], optimizers["rs18"], criterion, trainLoader, trainDataset, accuracy, epoch_size)
-    test("rs18", nets["rs18"], testLoader, testDataset, accuracy)
+    train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size)
+    train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size)
+    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size / 2)
+    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size / 2)
 
 
-def train(key, model, optimizer, criterion, trainLoader, trainDataset, accuracy, epoch_size):
+def train(key, model, optimizer, criterion, accuracy, epoch_size):
+    print('Now training : ', key)
     key += "_train"
     model.train(mode=True)
     for epoch in range(epoch_size + 1):
@@ -81,8 +84,6 @@ def train(key, model, optimizer, criterion, trainLoader, trainDataset, accuracy,
         train_correct = 0.0
 
         for step, (x, y) in enumerate(trainLoader):
-            if step % 2000 == 0 and step != 0:
-                print('training step : ', step)
             x = x.to(device)
             y = y.to(device).long().view(-1)
 
@@ -99,15 +100,20 @@ def train(key, model, optimizer, criterion, trainLoader, trainDataset, accuracy,
         print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
         print('')
         torch.save(model.state_dict(), key + '.pkl')
+        test(key, model, accuracy, epoch)
+
+    f = open('terminal.txt', 'a')
+    for key in accuracy:
+        f.write(key + ' : ')
+        f.write(accuracy.__getitem__(key))
+        f.write('\n')
 
 
-def test(key, model, testLoader, testDataset, accuracy):
+def test(key, model, accuracy, epoch):
     key += "_test"
     model.eval()
     test_correct = 0.0
     for step, (x, y) in enumerate(testLoader):
-        if step % 2000 == 0 and step != 0:
-            print('testing step : ', step)
         x = x.to(device)
         y = y.to(device).long().view(-1)
 
@@ -118,6 +124,7 @@ def test(key, model, testLoader, testDataset, accuracy):
 
     print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
     print('')
+
 
 if __name__ == '__main__':
     main()
