@@ -40,8 +40,8 @@ testDataset = RetinopathyLoader(
     transformTesting
 )
 
-trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
-testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, pin_memory=True, num_workers=6)
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=6)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=6)
 
 
 def main():
@@ -76,17 +76,18 @@ def main():
     train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size / 2)
     train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size / 2)
 
-
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
     name = key
     key += "_train"
     model.train(mode=True)
-    for epoch in range(epoch_size + 1):
+    for epoch in range(epoch_size):
         print('epoch : ', epoch)
         train_correct = 0.0
 
         for step, (x, y) in enumerate(trainLoader):
+            if step % 500 == 0 and step != 0:
+                break
             x = x.to(device)
             y = y.to(device).long().view(-1)
 
@@ -108,7 +109,7 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
     f = open('terminal.txt', 'a')
     for key in accuracy:
         f.write(key + ' : ')
-        f.write(accuracy.__getitem__(key))
+        f.write(str(accuracy.__getitem__(key)))
         f.write('\n')
 
 
@@ -119,7 +120,6 @@ def test(key, model, accuracy, epoch):
     for step, (x, y) in enumerate(testLoader):
         x = x.to(device)
         y = y.to(device).long().view(-1)
-
         y_hat = model(x)
         test_correct += (torch.max(y_hat, 1)[1] == y).sum().item()
 
