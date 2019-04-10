@@ -80,11 +80,11 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
     name = key
     key += "_train"
-    model.train(mode=True)
+
     for epoch in range(epoch_size):
         print('epoch : ', epoch)
         train_correct = 0.0
-
+        model.train(mode=True)
         for step, (x, y) in enumerate(trainLoader):
             x = x.to(device)
             y = y.to(device).long().view(-1)
