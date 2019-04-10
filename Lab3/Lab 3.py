@@ -26,7 +26,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
 # dataPath = '/home/ubuntu/DLP_Assignments/Lab3/data/data/'
 batch_size = 4
-epoch_size = 10
+epoch_size_resnet18 = 10
+epoch_size_resnet50 = 5
 
 trainDataset = RetinopathyLoader(
     dataPath,
@@ -57,7 +58,7 @@ def main():
 
     # Optimizers
     criterion = nn.CrossEntropyLoss()
-    learning_rates = {0.001, 0.001, 0.001, 0.001}
+    learning_rates = {0.1, 0.1, 0.1, 0.1}
 
     optimizer = optim.SGD
     optimizers = {
@@ -71,10 +72,10 @@ def main():
         **{key + "_test": [] for key in nets}
     }
 
-    train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size)
-    train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size)
-    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size / 2)
-    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size / 2)
+    train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
+    train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
+    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet50)
+    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size_resnet50)
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
@@ -101,11 +102,11 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         accuracy[key] += [(train_correct * 100.0) / len(trainDataset)]
         print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
         print('')
-        torch.save(model.state_dict(), key + '.pkl')
+        torch.save(model.state_dict(), name + '.pkl')
         test(name, model, accuracy, epoch)
 
     f = open('terminal.txt', 'a')
-    f.write(str(accuracy.__getitem__(key)))
+    f.write(key + str(accuracy.__getitem__(key)))
     f.write('\n')
 
 
