@@ -40,8 +40,8 @@ testDataset = RetinopathyLoader(
     transformTesting
 )
 
-trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=6)
-testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=6)
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, pin_memory=True)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, pin_memory=True)
 
 
 def main():
@@ -86,8 +86,6 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         train_correct = 0.0
 
         for step, (x, y) in enumerate(trainLoader):
-            if step % 500 == 0 and step != 0:
-                break
             x = x.to(device)
             y = y.to(device).long().view(-1)
 
@@ -107,10 +105,8 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         test(name, model, accuracy, epoch)
 
     f = open('terminal.txt', 'a')
-    for key in accuracy:
-        f.write(key + ' : ')
-        f.write(str(accuracy.__getitem__(key)))
-        f.write('\n')
+    f.write(str(accuracy.__getitem__(key)))
+    f.write('\n')
 
 
 def test(key, model, accuracy, epoch):
