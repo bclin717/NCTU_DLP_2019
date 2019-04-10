@@ -20,19 +20,21 @@ transformTesting = transforms.Compose([
     transforms.RandomResizedCrop(224),
     transforms.ToTensor()
 ])
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
 
 def main():
     torch.backends.cudnn.enabled = True
     # Datasets
     trainDataset = RetinopathyLoader(
-        '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/',
+        dataPath,
         'train',
         transformTraining
     )
 
     testDataset = RetinopathyLoader(
-        '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/',
+        dataPath,
         'test',
         transformTesting
     )
