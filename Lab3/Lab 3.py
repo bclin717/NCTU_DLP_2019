@@ -3,13 +3,14 @@ from __future__ import print_function
 import torch
 import torch.optim
 import torchvision
-# from Lab3.data.dataloader import *
-from data.dataloader import *
+# from data.dataloader import *
 from torch import nn
 from torch import optim
 from torch.cuda import device
 from torch.utils.data import DataLoader
 from torchvision import transforms
+
+from Lab3.data.dataloader import *
 
 transformTraining = transforms.Compose([
     transforms.RandomResizedCrop(224),
@@ -78,6 +79,7 @@ def main():
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
+    name = key
     key += "_train"
     model.train(mode=True)
     for epoch in range(epoch_size + 1):
@@ -101,7 +103,7 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
         print('')
         torch.save(model.state_dict(), key + '.pkl')
-        test(key, model, accuracy, epoch)
+        test(name, model, accuracy, epoch)
 
     f = open('terminal.txt', 'a')
     for key in accuracy:
