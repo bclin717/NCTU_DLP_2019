@@ -3,13 +3,13 @@ from __future__ import print_function
 import torch
 import torch.optim
 import torchvision
+# from Lab3.data.dataloader import *
+from data.dataloader import *
 from torch import nn
 from torch import optim
 from torch.cuda import device
 from torch.utils.data import DataLoader
 from torchvision import transforms
-
-from Lab3.data.dataloader import *
 
 transformTraining = transforms.Compose([
     transforms.RandomResizedCrop(224),
@@ -23,6 +23,7 @@ transformTesting = transforms.Compose([
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
+# dataPath = '/home/ubuntu/DLP_Assignments/Lab3/data/data/'
 batch_size = 4
 epoch_size = 10
 
@@ -55,7 +56,7 @@ def main():
 
     # Optimizers
     criterion = nn.CrossEntropyLoss()
-    learning_rates = {0.001}
+    learning_rates = {0.001, 0.001, 0.001, 0.001}
 
     optimizer = optim.SGD
     optimizers = {
