@@ -15,12 +15,12 @@ from Lab3.Resnet import *
 from Lab3.data.dataloader import *
 
 transformTraining = transforms.Compose([
-    # transforms.Resize(224),
+    transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 transformTesting = transforms.Compose([
-    # transforms.Resize(224),
+    transforms.Resize(224),
     transforms.ToTensor()
 ])
 
@@ -48,20 +48,34 @@ testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True
 
 
 def main():
-    torch.backends.cudnn.enabled = True
 
     # Models
-    nets = {
-        "rs18": resnet18().to(device),
-        "rs18_pretrain": torchvision.models.resnet18(pretrained=True).to(device),
-        "rs50": resnet50().to(device),
-        "rs50_pretrain": torchvision.models.resnet50(pretrained=True).to(device)
-    }
+    # nets["rs18"].to(device)
+    # nets["rs50"].to(device)
+    # nets["rs18_pretrain"].to(device)
+    # nets["rs50_pretrain"].to(device)
 
-    nets["rs18_pretrain"].fc = nn.Linear(51200, 4)
-    nets["rs18_pretrain"].to(device)
-    nets["rs50_pretrain"].fc = nn.Linear(51200, 4)
-    nets["rs50_pretrain"].to(device)
+    rs18 = resnet18()
+    rs50 = resnet50()
+    rs18_pretrain = torchvision.models.resnet18(pretrained=True)
+    rs50_pretrain = torchvision.models.resnet50(pretrained=True)
+
+    rs18_pretrain.fc = nn.Linear(rs18.fc.in_features, 4)
+    rs50_pretrain.fc = nn.Linear(rs50.fc.in_features, 4)
+    rs18_pretrain.fc = nn.Linear(rs18_pretrain.fc.in_features, 4)
+    rs50_pretrain.fc = nn.Linear(rs50_pretrain.fc.in_features, 4)
+
+    rs18.to(device)
+    rs50.to(device)
+    rs18_pretrain.to(device)
+    rs50_pretrain.to(device)
+
+    nets = {
+        "rs18": rs18,
+        "rs50": rs50,
+        "rs18_pretrain": rs18_pretrain,
+        "rs50_pretrain": rs50_pretrain
+    }
 
     # Optimizers
     criterion = nn.CrossEntropyLoss()
@@ -81,7 +95,8 @@ def main():
     train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
     train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
     train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet18)
-    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size_resnet50)
+    train("rs50_pretrain", nets["rs50_pretrainㄏ"], optimizers["rs50_pretrain"], criterion, accuracy,
+          epoch_size_resnet50)
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
