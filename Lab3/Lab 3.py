@@ -15,12 +15,12 @@ from Lab3.Resnet import *
 from Lab3.data.dataloader import *
 
 transformTraining = transforms.Compose([
-    transforms.Resize(224),
+    # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 transformTesting = transforms.Compose([
-    transforms.Resize(224),
+    # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
@@ -43,43 +43,28 @@ testDataset = RetinopathyLoader(
     transformTesting
 )
 
-trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True)
-testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True)
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True)
 
 
 def main():
 
     # Models
-    # nets["rs18"].to(device)
-    # nets["rs50"].to(device)
-    # nets["rs18_pretrain"].to(device)
-    # nets["rs50_pretrain"].to(device)
-
-    rs18 = resnet18()
-    rs50 = resnet50()
-    rs18_pretrain = torchvision.models.resnet18(pretrained=True)
-    rs50_pretrain = torchvision.models.resnet50(pretrained=True)
-
-    rs18_pretrain.fc = nn.Linear(rs18.fc.in_features, 4)
-    rs50_pretrain.fc = nn.Linear(rs50.fc.in_features, 4)
-    rs18_pretrain.fc = nn.Linear(rs18_pretrain.fc.in_features, 4)
-    rs50_pretrain.fc = nn.Linear(rs50_pretrain.fc.in_features, 4)
-
-    rs18.to(device)
-    rs50.to(device)
-    rs18_pretrain.to(device)
-    rs50_pretrain.to(device)
-
     nets = {
-        "rs18": rs18,
-        "rs50": rs50,
-        "rs18_pretrain": rs18_pretrain,
-        "rs50_pretrain": rs50_pretrain
+        "rs18": resnet18(),
+        "rs50": resnet50(),
+        "rs18_pretrain": torchvision.models.resnet18(pretrained=True),
+        "rs50_pretrain": torchvision.models.resnet50(pretrained=True)
     }
+
+    nets["rs18"].fc = nn.Linear(nets["rs18"].fc.in_features, 5)
+    nets["rs50"].fc = nn.Linear(nets["rs50"].fc.in_features, 5)
+    nets["rs18_pretrain"].fc = nn.Linear(nets["rs18_pretrain"].fc.in_features, 5)
+    nets["rs50_pretrain"].fc = nn.Linear(nets["rs50_pretrain"].fc.in_features, 5)
 
     # Optimizers
     criterion = nn.CrossEntropyLoss()
-    learning_rates = {0.001, 0.001, 0.001, 0.001}
+    learning_rates = {0.002, 0.002}
 
     optimizer = optim.SGD
     optimizers = {
@@ -92,14 +77,15 @@ def main():
         **{key + "_train": [] for key in nets},
         **{key + "_test": [] for key in nets}
     }
-    train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
-    train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
-    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet18)
-    train("rs50_pretrain", nets["rs50_pretrainㄏ"], optimizers["rs50_pretrain"], criterion, accuracy,
-          epoch_size_resnet50)
+
+    # train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
+    # train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
+    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet50)
+    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size_resnet50)
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
+    model.cuda()
     name = key
     key += "_train"
 
@@ -109,17 +95,18 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         model.train(mode=True)
         for step, (x, y) in enumerate(trainLoader):
             x = x.to(device)
-            y = y.to(device).long().view(-1)
+            y = y.to(device).view(-1)
 
             y_hat = model(x)
             loss = criterion(y_hat, y)
             loss.backward()
+
             train_correct += (torch.max(y_hat, 1)[1] == y).sum().item()
 
             optimizer.step()
             optimizer.zero_grad()
 
-            torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         accuracy[key] += [(train_correct * 100.0) / len(trainDataset)]
         print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
         print('')
