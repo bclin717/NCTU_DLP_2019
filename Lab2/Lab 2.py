@@ -17,8 +17,16 @@ def showResult(title='', **kwargs):
     plt.title(title)
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy(%)')
+
     for label, data in kwargs.items():
         plt.plot(range(len(data)), data, '--' if 'test' in label else '-', label=label)
+    plt.ylim(0, 100)
+    plt.xlim(0, 300)
+    points = [(-5, 87), (310, 87)]
+    (xpoints, ypoints) = zip(*points)
+
+    plt.plot(xpoints, ypoints, linestyle='--', color='black')
+
     plt.legend(loc='best', fancybox=True, shadow=True)
     plt.show()
 
@@ -28,9 +36,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     nets = {
-        "EEG_elu": EEGNet().to(device),
-        "EEG_relu": EEGNet(nn.ReLU).to(device),
-        "EEG_leaky_relu": EEGNet(nn.LeakyReLU).to(device)
+        # "EEG_elu": EEGNet().to(device),
+        "EEG_relu": EEGNet(nn.ReLU).to(device)
+        # "EEG_leaky_relu": EEGNet(nn.LeakyReLU).to(device)
         # "DCN_elu": DeepConvNet().to(device),
         # "DCN_relu": DeepConvNet(nn.ReLU).to(device),
         # "DCN_leaky_relu": DeepConvNet(nn.LeakyReLU).to(device)
@@ -38,8 +46,9 @@ def main():
 
     # Training setting
     loss_fn = nn.CrossEntropyLoss()
-    learning_rates = {0.025, 0.002, 0.0018}
+    # learning_rates = {0.025, 0.0018, 0.0018}
     # learning_rates = {0.0002, 0.0002, 0.0002}
+    learning_rates = {0.0022}
 
     optimizer = torch.optim.Adam
     optimizers = {
@@ -124,7 +133,7 @@ class EEGNet(nn.Module):
 
         self.firstConv = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=(1, 51), stride=(1, 1), padding=(0, 25), bias=False),
-            nn.BatchNorm2d(16, eps=1e-05, momentum=0.5, affine=True, track_running_stats=True)
+            nn.BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
         )
 
         self.depthwiseConv = nn.Sequential(
@@ -132,7 +141,7 @@ class EEGNet(nn.Module):
             nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             activation(),
             nn.AvgPool2d(kernel_size=(1, 4), stride=(1, 4), padding=0),
-            nn.Dropout(p=0.5)
+            nn.Dropout(p=0.6)
         )
 
         self.separableConv = nn.Sequential(
@@ -140,7 +149,7 @@ class EEGNet(nn.Module):
             nn.BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
             activation(),
             nn.AvgPool2d(kernel_size=(1, 8), stride=(1, 8), padding=0),
-            nn.Dropout(p=0.6)
+            nn.Dropout(p=0.65)
         )
 
         self.classify = nn.Sequential(
