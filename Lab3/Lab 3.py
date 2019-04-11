@@ -15,18 +15,20 @@ from Lab3.Resnet import *
 from Lab3.data.dataloader import *
 
 transformTraining = transforms.Compose([
-    transforms.Resize(224),
+    # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 transformTesting = transforms.Compose([
-    transforms.Resize(224),
+    # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
+# dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
 # dataPath = '/home/ubuntu/DLP_Assignments/Lab3/data/data/'
+dataPath = "C:/Users/ds934/Desktop/DLP/Lab3/data/data/"
+
 batch_size = 4
 epoch_size_resnet18 = 10
 epoch_size_resnet50 = 5
@@ -43,12 +45,12 @@ testDataset = RetinopathyLoader(
     transformTesting
 )
 
-trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True)
-testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True)
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
 
 
 def main():
-
+    torch.backends.cudnn.enabled = True
     # Models
     # nets["rs18"].to(device)
     # nets["rs50"].to(device)
@@ -79,7 +81,7 @@ def main():
 
     # Optimizers
     criterion = nn.CrossEntropyLoss()
-    learning_rates = {0.001, 0.001, 0.001, 0.001}
+    learning_rates = {0.001}
 
     optimizer = optim.SGD
     optimizers = {
@@ -92,11 +94,10 @@ def main():
         **{key + "_train": [] for key in nets},
         **{key + "_test": [] for key in nets}
     }
-    train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
+    # train("rs18", nets["rs18"], optimizers["rs18"], criterion, accuracy, epoch_size_resnet18)
     train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
-    train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet18)
-    train("rs50_pretrain", nets["rs50_pretrainㄏ"], optimizers["rs50_pretrain"], criterion, accuracy,
-          epoch_size_resnet50)
+    # train("rs50", nets["rs50"], optimizers["rs50"], criterion, accuracy, epoch_size_resnet50)
+    # train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size_resnet50)
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
@@ -108,6 +109,8 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         train_correct = 0.0
         model.train(mode=True)
         for step, (x, y) in enumerate(trainLoader):
+            if step % 2000 == 0 and step != 0:
+                print(step)
             x = x.to(device)
             y = y.to(device).long().view(-1)
 
