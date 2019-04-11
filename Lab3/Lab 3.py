@@ -43,12 +43,12 @@ testDataset = RetinopathyLoader(
     transformTesting
 )
 
-trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True)
-testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True)
+trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
+testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
 
 
 def main():
-
+    torch.backends.cudnn.enabled = True
     # Models
     nets = {
         "rs18": resnet18(),
