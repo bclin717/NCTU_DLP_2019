@@ -95,7 +95,7 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
         model.train(mode=True)
         for step, (x, y) in enumerate(trainLoader):
             x = x.to(device)
-            y = y.to(device).view(-1)
+            y = y.to(device).long().view(-1)
 
             y_hat = model(x)
             loss = criterion(y_hat, y)
