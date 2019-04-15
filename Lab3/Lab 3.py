@@ -3,16 +3,18 @@ from __future__ import print_function
 import torch
 import torch.optim
 import torchvision
-# from data.dataloader import *
-# from Resnet import  *
 from torch import nn
 from torch import optim
 from torch.cuda import device
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from Lab3.confusionMatrix import *
 from Lab3.data.dataloader import *
-from Lab3.showResult import plot_confusion_matrix
+
+# from Resnet import *
+# from data.dataloader import *
+# from Resnet import  *
 
 transformTraining = transforms.Compose([
     transforms.RandomHorizontalFlip(p=0.5),
