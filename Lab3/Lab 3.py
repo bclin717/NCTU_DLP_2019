@@ -12,73 +12,53 @@ from torchvision import transforms
 from Lab3.confusionMatrix import *
 from Lab3.data.dataloader import *
 
-# from Resnet import *
 # from data.dataloader import *
 # from Resnet import  *
 
 transformTraining = transforms.Compose([
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomVerticalFlip(p=0.5),
+    transforms.RandomHorizontalFlip(p=0.3),
+    transforms.RandomVerticalFlip(p=0.3),
     # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 transformTesting = transforms.Compose([
+    transforms.RandomHorizontalFlip(p=0.3),
+    transforms.RandomVerticalFlip(p=0.3),
     # transforms.Resize(224),
     transforms.ToTensor()
 ])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
+# dataPath = '/home/kevin/PycharmProjects/DLP Assignments/Lab3/data/data/'
 # dataPath = '/home/ubuntu/DLP_Assignments/Lab3/data/data/'
+dataPath = 'C:\\Users\\ds934\\Desktop\\DLP\\Lab3\\data\\data\\'
 
 batch_size = 8
 epoch_size_resnet18 = 20
-epoch_size_resnet50 = 5
+epoch_size_resnet50 = 10
+lr = 0.0013
 
-trainDataset = RetinopathyLoader(
-    dataPath,
-    'train',
-    transformTraining
-)
-
-testDataset = RetinopathyLoader(
-    dataPath,
-    'test',
-    transformTesting
-)
-
+trainDataset = RetinopathyLoader(dataPath, 'train', transformTraining)
+testDataset = RetinopathyLoader(dataPath, 'test', transformTesting)
 trainLoader = DataLoader(dataset=trainDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
 testLoader = DataLoader(dataset=testDataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
 
 
 def main():
     torch.backends.cudnn.enabled = True
-    # trainSetting()
-
-    accuracy = {
-        **{"rs18_test": []}
-    }
-    model = torchvision.models.resnet18(pretrained=True)
-    model.fc = nn.Linear(512, 5)
-    model.load_state_dict(
-        torch.load("/home/kevin/PycharmProjects/DLP Assignments/Lab3/models/lr0.001/rs18_pretrain.pkl"))
-    model.cuda()
-
-    test('rs18', model, accuracy)
 
 
-def trainSetting():
+def setAndStartTraining():
     nets = {
-        "rs18_pretrain": torchvision.models.resnet18(pretrained=True)
+        "rs50_pretrain": torchvision.models.resnet50(pretrained=True)
     }
 
-    nets["rs18_pretrain"].fc = nn.Linear(nets["rs18_pretrain"].fc.in_features, 5)
-    nets["rs18_pretrain"].avgpool = nn.AdaptiveAvgPool2d((1, 1))
+    nets["rs50_pretrain"].fc = nn.Linear(nets["rs50_pretrain"].fc.in_features, 5)
+    nets["rs50_pretrain"].avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
-    # Optimizers
     criterion = nn.CrossEntropyLoss()
-    learning_rates = {0.0013}
+    learning_rates = {lr}
 
     optimizer = optim.SGD
     optimizers = {
@@ -92,8 +72,19 @@ def trainSetting():
         **{key + "_test": [] for key in nets}
     }
 
-    train("rs18_pretrain", nets["rs18_pretrain"], optimizers["rs18_pretrain"], criterion, accuracy, epoch_size_resnet18)
+    train("rs50_pretrain", nets["rs50_pretrain"], optimizers["rs50_pretrain"], criterion, accuracy, epoch_size_resnet18)
 
+
+def setAndStartTesting():
+    accuracy = {
+        **{"rs18_test": []}
+    }
+    model = torchvision.models.resnet18(pretrained=True)
+    model.fc = nn.Linear(512, 5)
+    model.load_state_dict(torch.load("C:\\Users\\ds934\\Desktop\\DLP\\Lab3\\models\\rs18_pretrain_0012.pkl"))
+    model.cuda()
+
+    test('rs18', model, accuracy)
 
 def train(key, model, optimizer, criterion, accuracy, epoch_size):
     print('Now training : ', key)
@@ -130,7 +121,6 @@ def train(key, model, optimizer, criterion, accuracy, epoch_size):
     f.write('\n' + name + '_test' + str(accuracy.__getitem__(name + '_test')))
     f.write('\n')
 
-
 def test(key, model, accuracy, epoch=0):
     key += "_test"
     model.eval()
@@ -150,11 +140,9 @@ def test(key, model, accuracy, epoch=0):
             truth.append(p.item())
 
     classes = ['0', '1', '2', '3', '4']
-    plot_confusion_matrix(truth, pred, classes=classes, normalize=False,
-                          title='Normalized confusion matrix')
-
     accuracy[key] += [(test_correct * 100.0) / len(testDataset)]
     print(key, 'Acc: ', accuracy.__getitem__(key)[epoch])
+    plot_confusion_matrix(truth, pred, classes=classes, normalize=False, title='Normalized confusion matrix')
     print('')
 
 
