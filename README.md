@@ -7,3 +7,5 @@
 ### Lab 2 EEG classification with EEGNet and DeepConvNet 
 
 ### Lab 3 Diabetic Retinopathy Detection
+
+### Lab 4 BPTT
