@@ -50,6 +50,9 @@ dh = np.zeros_like(wh)
 
 for i in range(iterNum + 1):
     error = 0
+    d0 = 0
+    d1 = 0
+    dh = 0
 
     a_int = num_table[np.random.randint(64, 192)]
     a = binary[a_int]
@@ -81,7 +84,7 @@ for i in range(iterNum + 1):
 
         l1_value.append(np.ndarray.copy(l1))
 
-    future_l1_delta = np.zeros(hiddenDim)
+    l1_delta = np.zeros(hiddenDim)
 
     for position in range(dataDim):
         X = np.array([[a[position], b[position]]])
@@ -89,21 +92,15 @@ for i in range(iterNum + 1):
         prev_l1 = l1_value[-position - 2]
 
         l2_d = l2_deltas[-position - 1]
-        l1_delta = (future_l1_delta.dot(wh.T) + l2_d.dot(w1.T)) * deriv_sigmoid(l1)
+        l1_delta = (l1_delta.dot(wh.T) + l2_d.dot(w1.T)) * deriv_sigmoid(l1)
 
         d1 += np.atleast_2d(l1).T.dot(l2_d)
         dh += np.atleast_2d(prev_l1).T.dot(l1_delta)
         d0 += X.T.dot(l1_delta)
 
-        future_l1_delta = l1_delta
-
     w0 += d0 * alpha
     w1 += d1 * alpha
     wh += dh * alpha
-
-    d0 *= 0
-    d1 *= 0
-    dh *= 0
 
     if (i % iterPrintNum == 0):
         wrong = 0
