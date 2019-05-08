@@ -59,9 +59,9 @@ def showGraph(df):
     h1, l1 = plt.gca().get_legend_handles_labels()
 
     ax = plt.gca().twinx()
-    ax.plot(metrics_df.index, metrics_df.score, '-', label='BLEU4-score', c="C2")
-    ax.plot(metrics_df.index, metrics_df.klw, '--', label='KLD_weight', c="C3")
-    ax.plot(metrics_df.index, metrics_df.tfr, '--', label='Teacher ratio', c="C4")
+    ax.plot(df.index, df.score, '-', label='BLEU4-score', c="C2")
+    ax.plot(df.index, df.klw, '--', label='KLD_weight', c="C3")
+    ax.plot(df.index, df.tfr, '--', label='Teacher ratio', c="C4")
     ax.set_ylabel('score / weight')
 
     h2, l2 = ax.get_legend_handles_labels()
@@ -310,10 +310,6 @@ def trainIters(name, encoder, decoder, epoch_size, learning_rate=1e-2, show_size
         plot_kl_loss_total = 0
 
     return metrics
-
-
-
-
 
 # use gaussian noise to generate test data
 def generate_word(encoder, decoder, z, condition, maxlen=20):
