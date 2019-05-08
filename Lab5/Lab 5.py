@@ -44,7 +44,7 @@ You should check them before starting your lab.
 ================================================================================"""
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+torch.backends.cudnn.enabled = True
 
 def showGraph(df):
     plt.figure(figsize=(10, 6))
@@ -59,7 +59,7 @@ def showGraph(df):
     h1, l1 = plt.gca().get_legend_handles_labels()
 
     ax = plt.gca().twinx()
-    ax.plot(metrics_df.index, metrics_df.score, '.', label='BLEU4-score', c="C2")
+    ax.plot(metrics_df.index, metrics_df.score, '-', label='BLEU4-score', c="C2")
     ax.plot(metrics_df.index, metrics_df.klw, '--', label='KLD_weight', c="C3")
     ax.plot(metrics_df.index, metrics_df.tfr, '--', label='Teacher ratio', c="C4")
     ax.set_ylabel('score / weight')
@@ -140,41 +140,19 @@ def save_model_by_score(models, bleu_score, root):
     with open(p, 'w') as f:
         json.dump(previous, f)
 
-
-torch.max(torch.softmax(torch.randn(1, 28), dim=1), 1)[1]
-trainDataset = wordsDataset()
-testDataset = wordsDataset(False)
-
-word_size = trainDataset.chardict.n_words
-num_condition = len(trainDataset.tenses)
-# ----------Hyper Parameters----------#
-hidden_size = 256
-latent_size = 32
-condition_size = 8
-teacher_forcing_ratio = 0.5
-empty_input_ratio = 0.1
-KLD_weight = 0.0
-LR = 0.05
-
-
-# loss = cross_entropy + (kl w)*KL($q(Z|X, c;\theta') || p(Z|c)$)
 def decode_inference(decoder, z, c, maxlen, teacher=False, inputs=None):
     sos_token = trainDataset.chardict.word2index['SOS']
     eos_token = trainDataset.chardict.word2index['EOS']
     z = z.view(1, 1, -1)
-    i = 0
 
     outputs = []
     x = torch.LongTensor([sos_token]).to(device)
     hidden = decoder.initHidden(z, c)
 
+    i = 0
     for i in range(maxlen):
-        # get (1, word_size), (1,1,hidden_size)
         x = x.detach()
-        output, hidden = decoder(
-            x,
-            hidden
-        )
+        output, hidden = decoder(x, hidden)
         outputs.append(output)
         output_onehot = torch.max(torch.softmax(output, dim=1), 1)[1]
 
@@ -262,7 +240,6 @@ def trainIters(name, encoder, decoder, epoch_size, learning_rate=1e-2, show_size
 
         # get data from trian dataset
         for idx in range(len(trainDataset)):
-            # for idx in range(1):
             data = trainDataset[idx]
             inputs, c = data
 
@@ -335,32 +312,7 @@ def trainIters(name, encoder, decoder, epoch_size, learning_rate=1e-2, show_size
     return metrics
 
 
-metrics = []
-encoder = EncoderRNN(
-    word_size, hidden_size, latent_size, num_condition, condition_size
-).to(device)
-decoder = DecoderRNN(
-    word_size, hidden_size, latent_size, condition_size
-).to(device)
 
-# load_model(
-#     {'encoder': encoder, 'decoder': decoder},
-#     os.path.join('.', 'best')
-# )
-
-trainIters('training_from_init', encoder, decoder, epoch_size=250, show_size=2, learning_rate=10e-4,
-           KLD_weight=KLD_weight_annealing, teacher_forcing_ratio=teacher_forcing_ratio, metrics=metrics,
-           start_epoch=len(metrics))
-
-torch.save(metrics, os.path.join('.', 'metrics.pkl'))
-metrics_df = pd.DataFrame(metrics, columns=[
-    "crossentropy", "kl", "score", "klw", "tfr", "lr"
-])
-metrics_df.head()
-
-showGraph(metrics_df)
-
-all_score = evaluation(encoder, decoder, testDataset)
 
 
 # use gaussian noise to generate test data
@@ -390,6 +342,53 @@ def generate_test(encoder, decoder, noise=None):
     return noise, strs
 
 
-for i in range(0, 4):
-    noise = encoder.sample_z()
-    generate_test(encoder, decoder, noise)
+torch.max(torch.softmax(torch.randn(1, 28), dim=1), 1)[1]
+trainDataset = wordsDataset()
+testDataset = wordsDataset(False)
+word_size = trainDataset.chardict.n_words
+num_condition = len(trainDataset.tenses)
+# ----------Hyper Parameters----------#
+hidden_size = 256
+latent_size = 32
+condition_size = 8
+teacher_forcing_ratio = 0.5
+empty_input_ratio = 0.1
+KLD_weight = 0.0
+LR = 0.05
+
+
+def main():
+    metrics = []
+    encoder = EncoderRNN(
+        word_size, hidden_size, latent_size, num_condition, condition_size
+    ).to(device)
+    decoder = DecoderRNN(
+        word_size, hidden_size, latent_size, condition_size
+    ).to(device)
+
+    # load_model(
+    #     {'encoder': encoder, 'decoder': decoder},
+    #     os.path.join('.', 'best')
+    # )
+
+    trainIters('training_from_init', encoder, decoder, epoch_size=250, show_size=5, learning_rate=10e-4,
+               KLD_weight=KLD_weight_annealing, teacher_forcing_ratio=teacher_forcing_ratio, metrics=metrics,
+               start_epoch=len(metrics))
+
+    torch.save(metrics, os.path.join('.', 'metrics.pkl'))
+    metrics_df = pd.DataFrame(metrics, columns=[
+        "crossentropy", "kl", "score", "klw", "tfr", "lr"
+    ])
+    metrics_df.head()
+
+    showGraph(metrics_df)
+
+    all_score = evaluation(encoder, decoder, testDataset)
+
+    for i in range(0, 4):
+        noise = encoder.sample_z()
+        generate_test(encoder, decoder, noise)
+
+
+if __name__ == '__main__':
+    main()

@@ -10,7 +10,7 @@
 
 ### Lab 4 BPTT
 
-### Lab 5 VAE
+### Lab 5 Conditional Seq2Seq VAE
 
 ### Lab 6 GAN
 
