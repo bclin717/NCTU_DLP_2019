@@ -7,7 +7,6 @@ import random
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import torch.nn as nn
 import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
@@ -128,6 +127,18 @@ def weights_init(m):
         m.bias.data.fill_(0)
 
 
+def _noise_sample(dis_c, con_c, noise, bs):
+    idx = np.random.randint(10, size=bs)
+    c = np.zeros((bs, 10))
+    c[range(bs), idx] = 1.0
+
+    dis_c.data.copy_(torch.Tensor(c))
+    con_c.data.uniform_(-1.0, 1.0)
+    noise.data.uniform_(-1.0, 1.0)
+    z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
+
+    return z, idx
+
 def main():
     # Generator
     netG = Generator(ngpu).to(device)
@@ -156,6 +167,9 @@ def main():
     criterion_discriminator = nn.BCELoss().cuda()
     criterion_generateor = nn.CrossEntropyLoss().cuda()
 
+    criterionQ_dis = nn.CrossEntropyLoss().cuda()
+    criterionQ_con = log_gaussian()
+
     fixed_noise = torch.randn(opt.batchSize, 64, 1, 1, device=device)
     real_label = 1
     fake_label = 0
@@ -175,6 +189,19 @@ def main():
             netD.zero_grad()
             real_cpu = data[0].to(device)
             batch_size = real_cpu.size(0)
+
+            con_c = torch.FloatTensor(batch_size, 2).cuda()
+            con_c = Variable(con_c)
+            con_c.data.resize_(batch_size, 2)
+
+            dis_c = torch.FloatTensor(batch_size, 10).cuda()
+            dis_c = Variable(dis_c)
+            dis_c.data.resize_(batch_size, 10)
+
+            noise = torch.FloatTensor(batch_size, 62).cuda()
+            noise = Variable(noise)
+            noise.data.resize_(batch_size, 52)
+
             label = torch.full((batch_size,), real_label, device=device)
             # 改成先 FE 再 D
             fe_output1 = netFE(real_cpu)
@@ -184,8 +211,8 @@ def main():
             D_x = output.mean().item()
 
             # train with fake
-            noise = torch.randn(batch_size, 64, 1, 1, device=device)
-            fake = netG(noise)
+            z, idx = _noise_sample(dis_c, con_c, noise, batch_size)
+            fake = netG(z)
             label.fill_(fake_label)
             # 改成先 FE 再 D
             fe_output2 = netFE(fake.detach())
@@ -208,18 +235,21 @@ def main():
 
             reconstruct_loss = criterion_discriminator(probs_fake, label)
 
-            q_logits = netQ(fe_output)
-
-            label = label.long()
+            # label = label.long()
             # errG = criterion_generateor(output, label)
             # errG.backward()
 
-            idx = np.random.randint(10, size=batch_size)
+            q_logits, q_mu, q_var = netQ(fe_output)
             class_ = torch.LongTensor(idx).cuda()
             target = Variable(class_)
-            dis_loss = criterion_generateor(q_logits, target)
 
-            G_loss = dis_loss + reconstruct_loss
+            print(q_logits.size())
+            q_logits = torch.squeeze(q_logits, 4)
+            print(q_logits.size())
+            dis_loss = criterionQ_dis(q_logits, target)
+            con_loss = criterionQ_con(con_c, q_mu, q_var) * 0.1
+
+            G_loss = reconstruct_loss + dis_loss + con_loss
             G_loss.backward()
 
             D_G_z2 = output.mean().item()
@@ -232,7 +262,7 @@ def main():
                 vutils.save_image(real_cpu,
                                   '%s/real_samples.png' % opt.outf,
                                   normalize=True)
-                fake = netG(fixed_noise)
+                fake = netG(z)
                 vutils.save_image(fake.detach(),
                                   '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch),
                                   normalize=True)
