@@ -23,7 +23,7 @@ parser.add_argument('--dataset', help='cifar10 | lsun | mnist |imagenet | folder
 parser.add_argument('--dataroot', help='path to dataset', default='./')
 parser.add_argument('--batchSize', type=int, default=100, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
-parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
+parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -198,11 +198,16 @@ def train():
             optimG.step()
 
             if num_iters % 100 == 0:
-                print('Epoch/Iter:{0}/{1}, Dloss: {2}, Gloss: {3}, Qloss: {4}'.format(
+                print('Epoch/Iter:{0}/{1}, Dloss: {2}, Gloss: {3}, Qloss: {4}\n'.format(
                     epoch, num_iters, D_loss.data.cpu().numpy(),
                     G_loss.data.cpu().numpy(),
-                    dis_loss.data.cpu().numpy())
-                )
+                    dis_loss.data.cpu().numpy()))
+                f = open('Loss.txt', 'a')
+                f.write('[{0},{1},{2}],\n'.format(
+                    D_loss.data.cpu().numpy(),
+                    G_loss.data.cpu().numpy(),
+                    dis_loss.data.cpu().numpy()))
+
 
                 vutils.save_image(x.data, '%s/real.png' % opt.outf, normalize=True, nrow=10)
                 noise.data.copy_(fix_noise)
@@ -211,20 +216,23 @@ def train():
                 con_c.data.copy_(torch.from_numpy(c1))
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
                 x_save = G(z)
-                vutils.save_image(x_save.data, '%s/c1.png' % opt.outf, normalize=True, nrow=10)
+                vutils.save_image(x_save.data, '%s/model/result_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                                  nrow=10)
 
                 con_c.data.copy_(torch.from_numpy(c2))
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
                 x_save = G(z)
-                vutils.save_image(x_save.data, '%s/c2.png' % opt.outf, normalize=True, nrow=10)
+                vutils.save_image(x_save.data, '%s/model/result_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                                  nrow=10)
 
-            torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
-            torch.save(D.state_dict(), '%s/model/netD_epoch_%d.pth' % (opt.outf, epoch))
-            torch.save(FE.state_dict(), '%s/model/netFE_epoch_%d.pth' % (opt.outf, epoch))
-            torch.save(Q.state_dict(), '%s/model/netQ_epoch_%d.pth' % (opt.outf, epoch))
+        torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
+        torch.save(D.state_dict(), '%s/model/netD_epoch_%d.pth' % (opt.outf, epoch))
+        torch.save(FE.state_dict(), '%s/model/netFE_epoch_%d.pth' % (opt.outf, epoch))
+        torch.save(Q.state_dict(), '%s/model/netQ_epoch_%d.pth' % (opt.outf, epoch))
 
 
 def main():
+    torch.backends.cudnn.enabled = True
     train()
 
 if __name__ == '__main__':
