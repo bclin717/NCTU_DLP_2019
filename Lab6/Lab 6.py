@@ -145,6 +145,10 @@ def train():
     one_hot[range(100), idx] = 1
     fix_noise = torch.Tensor(100, 52).uniform_(-1, 1)
 
+    f = open('Loss.txt', 'w+')
+    f.write('\n')
+    f.close()
+
     for epoch in range(epoch_size):
         for num_iters, batch_data in enumerate(dataloader, 0):
             # real part
@@ -201,8 +205,7 @@ def train():
                     epoch, num_iters, D_loss.data.cpu().numpy(),
                     G_loss.data.cpu().numpy(),
                     dis_loss.data.cpu().numpy()))
-                f = open('Loss.txt', 'w+')
-                f.close()
+
                 f = open('Loss.txt', 'a')
                 f.write('[{0},{1},{2}],\n'.format(
                     D_loss.data.cpu().numpy(),
