@@ -47,14 +47,13 @@ cudnn.benchmark = True
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-if opt.dataset == 'mnist':
-    dataset = dset.MNIST(root=opt.dataroot, download=True,
-                         transform=transforms.Compose([
-                             transforms.Resize(opt.imageSize),
-                             transforms.ToTensor(),
-                             transforms.Normalize((0.5,), (0.5,)),
-                         ]))
-    nc = 1
+dataset = dset.MNIST(root=opt.dataroot, download=True,
+                     transform=transforms.Compose([
+                         transforms.Resize(opt.imageSize),
+                         transforms.ToTensor(),
+                         transforms.Normalize((0.5,), (0.5,)),
+                     ]))
+nc = 1
 
 assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
@@ -216,13 +215,13 @@ def train():
                 con_c.data.copy_(torch.from_numpy(c1))
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
                 x_save = G(z)
-                vutils.save_image(x_save.data, '%s/model/result_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                vutils.save_image(x_save.data, '%s/model/result_c1_epoch_%d.png' % (opt.outf, epoch), normalize=True,
                                   nrow=10)
 
                 con_c.data.copy_(torch.from_numpy(c2))
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
                 x_save = G(z)
-                vutils.save_image(x_save.data, '%s/model/result_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                vutils.save_image(x_save.data, '%s/model/result_c2_epoch_%d.png' % (opt.outf, epoch), normalize=True,
                                   nrow=10)
 
         torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
