@@ -127,7 +127,7 @@ def train():
     criterionQ_dis = nn.CrossEntropyLoss().cuda()
     criterionQ_con = log_gaussian()
 
-    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=2e-4, betas=(0.5, 0.99))
+    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=1e-4, betas=(0.5, 0.99))
     optimG = optim.Adam([{'params': G.parameters()}, {'params': Q.parameters()}], lr=1e-3, betas=(0.5, 0.99))
 
     # fixed random variables
@@ -201,6 +201,8 @@ def train():
                     epoch, num_iters, D_loss.data.cpu().numpy(),
                     G_loss.data.cpu().numpy(),
                     dis_loss.data.cpu().numpy()))
+                f = open('Loss.txt', 'w+')
+                f.close()
                 f = open('Loss.txt', 'a')
                 f.write('[{0},{1},{2}],\n'.format(
                     D_loss.data.cpu().numpy(),
