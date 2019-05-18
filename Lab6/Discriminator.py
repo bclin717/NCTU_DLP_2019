@@ -37,23 +37,18 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, x):
-        output = self.discriminator(x).view(-1)
-        return output
+        output = self.discriminator(x)
+        return output.view(-1)
 
 
-class Q(nn.Module):
+class Qnet(nn.Module):
 
     def __init__(self):
-        super(Q, self).__init__()
+        super(Qnet, self).__init__()
 
-        # self.Q = nn.Sequential(
-        #     nn.Linear(8192, 100, bias=True),
-        #     nn.ReLU(),
-        #     nn.Linear(100, 10, bias=True)
-
-        self.conv = nn.Conv2d(512, 100, 1, bias=False)
+        self.conv = nn.Conv2d(512, 100, 4, 1, bias=False)
         self.bn = nn.BatchNorm2d(100)
-        self.lReLU = nn.LeakyReLU(0.1, inplace=True)
+        self.lReLU = nn.ReLU
         self.conv_disc = nn.Conv2d(100, 10, 1)
         self.conv_mu = nn.Conv2d(100, 2, 1)
         self.conv_var = nn.Conv2d(100, 2, 1)
@@ -61,13 +56,7 @@ class Q(nn.Module):
     def forward(self, x):
         y = self.conv(x)
         disc_logits = self.conv_disc(y).squeeze()
-
         mu = self.conv_mu(y).squeeze()
         var = self.conv_var(y).squeeze().exp()
 
         return disc_logits, mu, var
-
-        # s = x.size(0) * x.size(1) * x.size(2) * x.size(3)
-        # s = (int)(s / 8192)
-        # output = self.Q(x.view(s, 8192)).squeeze()
-        # return output
