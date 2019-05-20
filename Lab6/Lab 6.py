@@ -43,8 +43,6 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-cudnn.benchmark = True
-
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
@@ -54,13 +52,13 @@ dataset = dset.MNIST(root=opt.dataroot, download=True,
                          transforms.ToTensor(),
                          transforms.Normalize((0.5,), (0.5,)),
                      ]))
-nc = 1
 
-assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
                                          shuffle=True, num_workers=int(opt.workers))
 
+cudnn.benchmark = True
 device = torch.device("cuda:0" if opt.cuda else "cpu")
+torch.backends.cudnn.enabled = True
 
 class log_gaussian:
     def __call__(self, x, mu, var):
@@ -70,7 +68,6 @@ class log_gaussian:
         return logli.sum(1).mean().mul(-1)
 
 
-# custom weights initialization called on netG and netD
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -105,61 +102,52 @@ prob = {
     'Fake_after Updating G': []
 }
 
-def train():
+batch_size = opt.batchSize
+epoch_size = 80
+lr_D = 1e-4
+lr_G = 1e-3
 
+real_x = torch.FloatTensor(batch_size, 1, 28, 28).cuda()
+label = torch.FloatTensor(batch_size, 1).cuda()
+dis_c = torch.FloatTensor(batch_size, 10).cuda()
+con_c = torch.FloatTensor(batch_size, 2).cuda()
+noise = torch.FloatTensor(batch_size, 52).cuda()
+
+idx = np.arange(10)
+for i in range(9):
+    idx = np.append(idx, np.arange(10))
+
+one_hot = np.zeros((100, 10))
+one_hot[range(100), idx] = 1
+
+fix_noise = torch.Tensor(100, 52).uniform_(-1, 1)
+
+c = np.linspace(-1, 1, 10).reshape(1, -1)
+c = np.repeat(c, 10, 0).reshape(-1, 1)
+c1 = np.hstack([c, np.zeros_like(c)])
+
+def train():
     G = Generator().to(device)
     G.apply(weights_init)
 
-    # Discriminator
     D = Discriminator().to(device)
     D.apply(weights_init)
 
-    # FrontEnd
     FE = FrontEnd().to(device)
     FE.apply(weights_init)
 
-    # Q
     Q = Qnet().to(device)
     Q.apply(weights_init)
-
-    batch_size = 100
-    epoch_size = 2
-
-    real_x = torch.FloatTensor(batch_size, 1, 28, 28).cuda()
-    label = torch.FloatTensor(batch_size, 1).cuda()
-    dis_c = torch.FloatTensor(batch_size, 10).cuda()
-    con_c = torch.FloatTensor(batch_size, 2).cuda()
-    noise = torch.FloatTensor(batch_size, 62).cuda()
-
-    real_x = Variable(real_x)
-    label = Variable(label, requires_grad=False)
-    dis_c = Variable(dis_c)
-    con_c = Variable(con_c)
-    noise = Variable(noise)
 
     criterionD = nn.BCELoss().cuda()
     criterionQ_dis = nn.CrossEntropyLoss().cuda()
     criterionQ_con = log_gaussian()
 
-    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=0.00009, betas=(0.5, 0.99))
-    optimG = optim.Adam([{'params': G.parameters()}, {'params': Q.parameters()}], lr=1e-3, betas=(0.5, 0.99))
-
-    # fixed random variables
-    c = np.linspace(-1, 1, 10).reshape(1, -1)
-    c = np.repeat(c, 10, 0).reshape(-1, 1)
-
-    c1 = np.hstack([c, np.zeros_like(c)])
-    c2 = np.hstack([np.zeros_like(c), c])
-
-    idx = np.arange(10)
-    for i in range(9):
-        idx = np.append(idx, np.arange(10))
-
-    one_hot = np.zeros((100, 10))
-    one_hot[range(100), idx] = 1
-    fix_noise = torch.Tensor(100, 52).uniform_(-1, 1)
+    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=lr_D, betas=(0.5, 0.99))
+    optimG = optim.Adam([{'params': G.parameters()}, {'params': Q.parameters()}], lr=lr_G, betas=(0.5, 0.99))
 
     for epoch in range(epoch_size):
+        torch.cuda.empty_cache()
         for num_iters, batch_data in enumerate(dataloader, 0):
             # real part
             optimD.zero_grad()
@@ -232,38 +220,27 @@ def train():
                 prob['Fake_after Updating G'].append(P_fake_after)
 
                 f = open('Loss.txt', 'w+')
-                f.write(', '.join(str(e) for e in losses['G_loss']))
-                f.write('\n\n')
-                f.write(', '.join(str(e) for e in losses['D_loss']))
-                f.write('\n\n')
-                f.write(', '.join(str(e) for e in losses['Q_loss']))
-                f.write('\n\n')
+                for key, value in losses.items():
+                    f.write(', '.join(str(e) for e in losses[key]))
+                    f.write('\n\n')
                 f.close()
 
                 f = open('Prob.txt', 'w+')
-                f.write(', '.join(str(e) for e in prob['Real']))
-                f.write('\n\n')
-                f.write(', '.join(str(e) for e in prob['Fake_before Updating G']))
-                f.write('\n\n')
-                f.write(', '.join(str(e) for e in prob['Fake_after Updating G']))
-                f.write('\n\n')
+                for key, value in prob.items():
+                    f.write(', '.join(str(e) for e in prob[key]))
+                    f.write('\n\n')
                 f.close()
 
                 vutils.save_image(x.data, '%s/real.png' % opt.outf, normalize=True, nrow=10)
                 noise.data.copy_(fix_noise)
                 dis_c.data.copy_(torch.Tensor(one_hot))
-
                 con_c.data.copy_(torch.from_numpy(c1))
+
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
+
                 x_save = G(z)
                 vutils.save_image(x_save.data, '%s/model/result_c1_epoch_%02d.png' % (opt.outf, epoch), normalize=True,
                                   nrow=10)
-
-                # con_c.data.copy_(torch.from_numpy(c2))
-                # z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
-                # x_save = G(z)
-                # vutils.save_image(x_save.data, '%s/model/result_c2_epoch_%d.png' % (opt.outf, epoch), normalize=True,
-                #                   nrow=10)
 
         if epoch > 50:
             torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
@@ -272,13 +249,31 @@ def train():
             torch.save(Q.state_dict(), '%s/model/netQ_epoch_%d.pth' % (opt.outf, epoch))
 
 
+def generate():
+    G = Generator().to(device)
+    G.load_state_dict(torch.load('%s/model/netG_epoch_79.pth' % (opt.outf)))
+    G.eval()
+
+    fix_noise = torch.Tensor(100, 52).uniform_(-1, 1)
+
+    for i in range(10):
+        one_hot = np.zeros((100, 10))
+        one_hot[range(100), i] = 1
+
+        noise.data.copy_(fix_noise)
+        dis_c.data.copy_(torch.Tensor(one_hot))
+        con_c.data.copy_(torch.from_numpy(c1))
+
+        z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
+
+        x_save = G(z)
+        vutils.save_image(x_save.data, '%s/one_hot/result_G_%d.png' % (opt.outf, i), normalize=True, nrow=10)
+
 def main():
-    torch.backends.cudnn.enabled = True
-    train()
-    print(losses)
-    print(prob)
-    showResult(title='Loss', results=losses)
-    showResult(title='Prob', results=prob)
+    generate()
+    # train()
+    # showResult(title='Loss', results=losses)
+    # showResult(title='Prob', results=prob)
 
 
 def showResult(title='', results=losses):
