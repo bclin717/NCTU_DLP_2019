@@ -4,6 +4,7 @@ import argparse
 import os
 import random
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
@@ -92,7 +93,20 @@ def _noise_sample(dis_c, con_c, noise, bs):
     return z, idx
 
 
+losses = {
+    'G_loss': [],
+    'D_loss': [],
+    'Q_loss': []
+}
+
+prob = {
+    'Real': [],
+    'Fake_before Updating G': [],
+    'Fake_after Updating G': []
+}
+
 def train():
+
     G = Generator().to(device)
     G.apply(weights_init)
 
@@ -109,7 +123,7 @@ def train():
     Q.apply(weights_init)
 
     batch_size = 100
-    epoch_size = 80
+    epoch_size = 2
 
     real_x = torch.FloatTensor(batch_size, 1, 28, 28).cuda()
     label = torch.FloatTensor(batch_size, 1).cuda()
@@ -127,7 +141,7 @@ def train():
     criterionQ_dis = nn.CrossEntropyLoss().cuda()
     criterionQ_con = log_gaussian()
 
-    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=1e-4, betas=(0.5, 0.99))
+    optimD = optim.Adam([{'params': FE.parameters()}, {'params': D.parameters()}], lr=0.00009, betas=(0.5, 0.99))
     optimG = optim.Adam([{'params': G.parameters()}, {'params': Q.parameters()}], lr=1e-3, betas=(0.5, 0.99))
 
     # fixed random variables
@@ -144,10 +158,6 @@ def train():
     one_hot = np.zeros((100, 10))
     one_hot[range(100), idx] = 1
     fix_noise = torch.Tensor(100, 52).uniform_(-1, 1)
-
-    f = open('Loss.txt', 'w+')
-    f.write('\n')
-    f.close()
 
     for epoch in range(epoch_size):
         for num_iters, batch_data in enumerate(dataloader, 0):
@@ -170,6 +180,8 @@ def train():
             loss_real = criterionD(probs_real, label)
             loss_real.backward()
 
+            P_real = probs_real.mean().item()
+
             # fake part
             z, idx = _noise_sample(dis_c, con_c, noise, bs)
             fake_x = G(z)
@@ -178,6 +190,9 @@ def train():
             label.data.fill_(0)
             loss_fake = criterionD(probs_fake, label)
             loss_fake.backward()
+
+            P_fake_before = probs_fake.mean().item()
+
 
             D_loss = loss_real + loss_fake
 
@@ -188,6 +203,8 @@ def train():
             fe_out = FE(fake_x)
             probs_fake = D(fe_out)
             label.data.fill_(1.0)
+
+            P_fake_after = probs_fake.mean().item()
 
             reconstruct_loss = criterionD(probs_fake, label)
             q_logits, q_mu, q_var = Q(fe_out)
@@ -201,17 +218,36 @@ def train():
             optimG.step()
 
             if num_iters % 100 == 0:
-                print('Epoch/Iter:{0}/{1}, Dloss: {2}, Gloss: {3}, Qloss: {4}\n'.format(
+                print('Epoch/Iter:{0}/{1}, Dloss: {2}, Gloss: {3}, Qloss: {4}'.format(
                     epoch, num_iters, D_loss.data.cpu().numpy(),
                     G_loss.data.cpu().numpy(),
                     dis_loss.data.cpu().numpy()))
 
-                f = open('Loss.txt', 'a')
-                f.write('[{0},{1},{2}],\n'.format(
-                    D_loss.data.cpu().numpy(),
-                    G_loss.data.cpu().numpy(),
-                    dis_loss.data.cpu().numpy()))
+                losses['G_loss'].append(G_loss.data.cpu().numpy())
+                losses['D_loss'].append(D_loss.data.cpu().numpy())
+                losses['Q_loss'].append(dis_loss.data.cpu().numpy())
 
+                prob['Real'].append(P_real)
+                prob['Fake_before Updating G'].append(P_fake_before)
+                prob['Fake_after Updating G'].append(P_fake_after)
+
+                f = open('Loss.txt', 'w+')
+                f.write(', '.join(str(e) for e in losses['G_loss']))
+                f.write('\n\n')
+                f.write(', '.join(str(e) for e in losses['D_loss']))
+                f.write('\n\n')
+                f.write(', '.join(str(e) for e in losses['Q_loss']))
+                f.write('\n\n')
+                f.close()
+
+                f = open('Prob.txt', 'w+')
+                f.write(', '.join(str(e) for e in prob['Real']))
+                f.write('\n\n')
+                f.write(', '.join(str(e) for e in prob['Fake_before Updating G']))
+                f.write('\n\n')
+                f.write(', '.join(str(e) for e in prob['Fake_after Updating G']))
+                f.write('\n\n')
+                f.close()
 
                 vutils.save_image(x.data, '%s/real.png' % opt.outf, normalize=True, nrow=10)
                 noise.data.copy_(fix_noise)
@@ -220,24 +256,41 @@ def train():
                 con_c.data.copy_(torch.from_numpy(c1))
                 z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
                 x_save = G(z)
-                vutils.save_image(x_save.data, '%s/model/result_c1_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                vutils.save_image(x_save.data, '%s/model/result_c1_epoch_%02d.png' % (opt.outf, epoch), normalize=True,
                                   nrow=10)
 
-                con_c.data.copy_(torch.from_numpy(c2))
-                z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
-                x_save = G(z)
-                vutils.save_image(x_save.data, '%s/model/result_c2_epoch_%d.png' % (opt.outf, epoch), normalize=True,
-                                  nrow=10)
+                # con_c.data.copy_(torch.from_numpy(c2))
+                # z = torch.cat([noise, dis_c, con_c], 1).view(-1, 64, 1, 1)
+                # x_save = G(z)
+                # vutils.save_image(x_save.data, '%s/model/result_c2_epoch_%d.png' % (opt.outf, epoch), normalize=True,
+                #                   nrow=10)
 
-        torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
-        torch.save(D.state_dict(), '%s/model/netD_epoch_%d.pth' % (opt.outf, epoch))
-        torch.save(FE.state_dict(), '%s/model/netFE_epoch_%d.pth' % (opt.outf, epoch))
-        torch.save(Q.state_dict(), '%s/model/netQ_epoch_%d.pth' % (opt.outf, epoch))
+        if epoch > 50:
+            torch.save(G.state_dict(), '%s/model/netG_epoch_%d.pth' % (opt.outf, epoch))
+            torch.save(D.state_dict(), '%s/model/netD_epoch_%d.pth' % (opt.outf, epoch))
+            torch.save(FE.state_dict(), '%s/model/netFE_epoch_%d.pth' % (opt.outf, epoch))
+            torch.save(Q.state_dict(), '%s/model/netQ_epoch_%d.pth' % (opt.outf, epoch))
 
 
 def main():
     torch.backends.cudnn.enabled = True
     train()
+    print(losses)
+    print(prob)
+    showResult(title='Loss', results=losses)
+    showResult(title='Prob', results=prob)
+
+
+def showResult(title='', results=losses):
+    plt.figure(title, figsize=(15, 7))
+    plt.title(title)
+    plt.xlabel('Every 100 batch steps')
+    plt.ylabel('Loss')
+    plt.grid()
+    for label, data in results.items():
+        plt.plot(range(1, len(data) + 1), data, 'o-' if 'w/o' in label else '-', label=label)
+    plt.legend(loc='best', fancybox=True, shadow=True)
+    plt.show()
 
 if __name__ == '__main__':
     main()
