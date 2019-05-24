@@ -12,10 +12,8 @@
 
 ### Lab 5 Conditional Seq2Seq VAE
 
-### Lab 6 GAN
+### Lab 6 InfoGAN
 
-### Lab 7 RL
+### Lab 7 TD Learning 2048
 
-### Lab 8 RL
-
-### Lab 9 RL
+### Lab 8 DQN and DDPN
